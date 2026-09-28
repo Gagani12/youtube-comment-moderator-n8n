@@ -208,7 +208,7 @@ It demonstrates practical experience with:
 
 **Gagani Rathnayaka**
 
-Frontend Developer | Learning Web Development and Data Science
+Data Science Undergraduate NSBM Green University
 
 - GitHub: [Gagani12](https://github.com/Gagani12)
 - LinkedIn: [Gagani Rathnayaka](https://www.linkedin.com/in/gagani-rathnayaka)
