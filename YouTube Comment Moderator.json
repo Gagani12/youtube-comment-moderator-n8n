@@ -1,0 +1,641 @@
+{
+  "name": "YouTube Comment Moderator",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        96
+      ],
+      "id": "07415795-6ebe-48f6-bc8e-965bad71adb9",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "url": "https://www.googleapis.com/youtube/v3/commentThreads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "part",
+              "value": "snippet"
+            },
+            {
+              "name": "videoId",
+              "value": "YOUR_VIDEO_ID"
+            },
+            {
+              "name": "maxResults",
+              "value": "20"
+            },
+            {
+              "name": "key",
+              "value": "YOUR_YOUTUBE_API_KEY"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "8f2bdb31-8e32-43b6-9af0-676c406e33a7",
+      "name": "GetComments"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "ba60cff6-4de8-495f-bc58-78bc15832097",
+      "name": "SplitComments"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6ee0976d-e585-4d5e-9f7f-c5c04cd09090",
+              "name": "author",
+              "value": "={{ $json.snippet.topLevelComment.snippet.authorDisplayName }}",
+              "type": "string"
+            },
+            {
+              "id": "82295dc2-edda-4870-85dc-01c262525abb",
+              "name": "text",
+              "value": "={{ $json.snippet.topLevelComment.snippet.textDisplay }}",
+              "type": "string"
+            },
+            {
+              "id": "82cad8e1-c17b-441b-9790-65b92ae2daad",
+              "name": "likes",
+              "value": "={{ $json.snippet.topLevelComment.snippet.likeCount }}",
+              "type": "number"
+            },
+            {
+              "id": "e276de39-16f0-474e-962d-8cf87b936a3d",
+              "name": "commentId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        672,
+        0
+      ],
+      "id": "1229c118-dc41-40b2-a6ba-488586f43385",
+      "name": "CleanComments"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Categorize this YouTube comment into exactly ONE of these categories: Spam, Toxic, Question, Positive, Negative, Neutral.\n\nComment: {{ $json.text }}\nAuthor: {{ $json.author }}\n\nRespond with ONLY the category name, nothing else.",
+        "options": {
+          "systemMessage": "You are a YouTube comment moderator assistant. Your job is to classify comments accurately into one category only. Do not explain your reasoning, just output the single category word.\n\nCategories:\n- Spam: promotional links, unrelated content, bot-like repetitive text\n- Toxic: hate speech, harassment, offensive language\n- Question: genuine questions from viewers\n- Positive: praise, compliments, positive emojis/reactions\n- Negative: complaints, criticism (non-toxic)\n- Neutral: general comments that don't fit other categories"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "e8f7e2e5-c518-4e39-a07d-bdb9d0baa4d7",
+      "name": "CategorizeComment"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1120,
+        240
+      ],
+      "id": "05c2491d-075b-4269-bc42-5b0a8c6ac6f8",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_ME",
+          "name": "REPLACE_ME",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "28619215-49c0-483b-bdfd-9be2e9bf380b",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "Spam",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "FlaggedRisky"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "879f14d4-84c3-4b8a-ba53-46bfa137bc73",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "Toxic",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "FlaggedRisky"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "e0bcd36f-e053-433d-b117-31552bf420d8",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "Question",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Questions"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "c559e31a-3e61-4c1f-9ce5-1a3465895d20",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "Positive",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Logged"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "cf942833-ddfd-4555-a409-49d09de3dbdd",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "Negative",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Logged"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b151ffd8-1476-45b0-a16e-a014068f017f",
+                    "leftValue": "={{ $json.output }}",
+                    "rightValue": "Neutral",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Logged"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        1616,
+        -48
+      ],
+      "id": "29feace4-81e1-4e42-92a0-1cb3f732ddf7",
+      "name": "RouteByCategory"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "REPLACE_ME",
+          "mode": "list",
+          "cachedResultName": "youtube_comments",
+          "cachedResultUrl": "/projects/REPLACE_ME/datatables/59AqoADN4aMvYwls"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "commentId": "={{ $json.commentId }}",
+            "author": "={{ $json.author }}",
+            "text": "={{ $json.text }}",
+            "category": "={{ $json.output }}",
+            "dateProcessed": "={{ $now }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "commentId",
+              "displayName": "commentId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "author",
+              "displayName": "author",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "text",
+              "displayName": "text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "dateProcessed",
+              "displayName": "dateProcessed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        2032,
+        32
+      ],
+      "id": "a60eebfb-dff5-423a-8e82-8930de0abcb8",
+      "name": "LogComment"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=⚠️ Flagged Comment\nAuthor: {{ $json.author }}\nComment: {{ $json.text }}\nCategory: {{ $json.output }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1856,
+        -176
+      ],
+      "id": "81730223-1243-464f-9d43-7690bde25135",
+      "name": "AlertModerator",
+      "webhookId": "88f87460-3e11-4493-880f-45a816ff7222",
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_ME",
+          "name": "REPLACE_ME"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('AddTestComment').all();\nconst ai = $input.all();\nreturn ai.map((item, i) => ({\n  json: {\n    author: original[i].json.author,\n    text: original[i].json.text,\n    commentId: original[i].json.commentId,\n    output: item.json.output\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -176
+      ],
+      "id": "1770bbe6-34fc-4dd6-b96c-088490aa9d3f",
+      "name": "AttachData"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nitems.push({ json: { author: \"TestSpammer\", text: \"Check out my channel [www.example.com](https://www.example.com) and subscribe for free gifts!!!\", likes: 0, commentId: \"test1\" } });\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "7dbdd7c0-c256-4e24-a7cd-43f99eecad97",
+      "name": "AddTestComment"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        -160
+      ],
+      "id": "d9d4295a-92e7-47ff-92a6-28d67735f257",
+      "name": "TriggerDaily9am"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "GetComments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GetComments": {
+      "main": [
+        [
+          {
+            "node": "SplitComments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SplitComments": {
+      "main": [
+        [
+          {
+            "node": "CleanComments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CleanComments": {
+      "main": [
+        [
+          {
+            "node": "AddTestComment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "CategorizeComment",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CategorizeComment": {
+      "main": [
+        [
+          {
+            "node": "AttachData",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RouteByCategory": {
+      "main": [
+        [
+          {
+            "node": "AlertModerator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AlertModerator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LogComment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LogComment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LogComment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LogComment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AlertModerator": {
+      "main": [
+        [
+          {
+            "node": "LogComment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AttachData": {
+      "main": [
+        [
+          {
+            "node": "RouteByCategory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AddTestComment": {
+      "main": [
+        [
+          {
+            "node": "CategorizeComment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TriggerDaily9am": {
+      "main": [
+        [
+          {
+            "node": "GetComments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "55770cf4-fe19-4458-8e6b-fb169b34ee85",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "nodeGroups": [],
+  "id": "spYVY7FGfdnAblji",
+  "tags": []
+}
